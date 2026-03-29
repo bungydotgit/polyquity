@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "@anon-aadhaar/contracts": "^2.4.3",
+    "@anon-aadhaar/core": "^2.4.3"
+  }
+}
