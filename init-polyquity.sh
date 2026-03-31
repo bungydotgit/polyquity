@@ -15,6 +15,7 @@ sleep 3 # Give Anvil a few seconds to fully boot up
 
 # 2. Start Otterscan via Docker (in background)
 echo "🦦 Starting Otterscan on port 5840..."
+export DOCKER_HOST=unix:///var/run/docker.sock
 docker run --rm -p 5840:80 -d otterscan/otterscan:latest > /dev/null &
 
 # 3. Deploy Contracts via Foundry

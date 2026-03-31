@@ -12,7 +12,6 @@ import '@rainbow-me/rainbowkit/styles.css'
 import appCss from '../styles.css?url'
 import { config } from '../lib/wagmi'
 import { queryClient } from '../lib/react-query'
-import { AuthGuard } from '@/Auth/components/auth-guard'
 
 export const Route = createRootRoute({
   head: () => ({
@@ -68,7 +67,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
                 learnMoreUrl: 'https://polyquity.io',
               }}
             >
-              <AuthGuard>{children}</AuthGuard>
+              {children}
             </RainbowKitProvider>
           </QueryClientProvider>
         </WagmiProvider>

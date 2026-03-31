@@ -1,54 +1,58 @@
 import { createServerFn } from '@tanstack/react-start'
 import { db } from '../db'
-import { users } from '../db/schema'
+import { users, companies } from '../db/schema'
 import { eq } from 'drizzle-orm'
-import type { NewUser } from '../db/schema'
+
+export const onboardUser = createServerFn({ method: 'POST' })
+  .inputValidator(
+    (input: {
+      walletAddress: string
+      role: 'investor' | 'issuer'
+      displayName: string
+      email?: string
+      companyName?: string
+      companyDescription?: string
+      website?: string
+      registrationNumber?: string
+    }) => input,
+  )
+  .handler(async ({ data }) => {
+    const wallet = data.walletAddress.toLowerCase()
+
+    return await db.transaction(async (tx) => {
+      // 1. Create the user
+      const [newUser] = await tx
+        .insert(users)
+        .values({
+          walletAddress: wallet,
+          displayName: data.displayName,
+          email: data.email ?? null,
+          role: data.role,
+        })
+        .returning()
+
+      // 2. If issuer, create the company profile
+      if (data.role === 'issuer' && data.companyName) {
+        await tx.insert(companies).values({
+          ownerWallet: wallet,
+          name: data.companyName,
+          description: data.companyDescription ?? null,
+          website: data.website ?? null,
+          registrationNumber: data.registrationNumber ?? null,
+        })
+      }
+
+      return newUser
+    })
+  })
 
 export const getUser = createServerFn({ method: 'GET' })
   .inputValidator((input: { walletAddress: string }) => input)
   .handler(async ({ data }) => {
+    // We lowercase the wallet address to ensure EVM checksums don't create duplicate accounts
     const result = await db.query.users.findFirst({
       where: eq(users.walletAddress, data.walletAddress.toLowerCase()),
-      with: { kycVerifications: true, company: true },
+      with: { company: true }, // Eager load the company profile if they are an issuer
     })
     return result ?? null
-  })
-
-export const registerUser = createServerFn({ method: 'POST' })
-  .inputValidator(
-    (input: {
-      walletAddress: string
-      displayName?: string
-      email?: string
-      role: 'investor' | 'issuer'
-    }) => input,
-  )
-  .handler(async ({ data }) => {
-    const newUser: NewUser = {
-      walletAddress: data.walletAddress.toLowerCase(),
-      displayName: data.displayName ?? null,
-      email: data.email ?? null,
-      role: data.role,
-    }
-    const [inserted] = await db.insert(users).values(newUser).returning()
-    return inserted
-  })
-
-export const updateUser = createServerFn({ method: 'POST' })
-  .inputValidator(
-    (input: { walletAddress: string; displayName?: string; email?: string }) =>
-      input,
-  )
-  .handler(async ({ data }) => {
-    const updates: Record<string, unknown> = { updatedAt: new Date() }
-    if (data.displayName !== undefined) updates.displayName = data.displayName
-    if (data.email !== undefined) updates.email = data.email
-
-    const [updated] = await db
-      .update(users)
-      .set(updates)
-      .where(eq(users.walletAddress, data.walletAddress.toLowerCase()))
-      .returning()
-
-    return updated ?? null
   })

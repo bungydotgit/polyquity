@@ -1,162 +1,238 @@
 import { useState } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useServerFn } from '@tanstack/react-start'
 import { useAccount } from 'wagmi'
-
-import {
-  ShieldCheck,
-  Building2,
-  Briefcase,
-  Fingerprint,
-} from 'lucide-react'
-
-import { registerUser } from 'server/functions/users'
-import { recordKycVerification } from 'server/functions/kyc'
-import { ReclaimVerification } from '../components/ReclaimVerification'
+import { Building2, UserCircle, Loader2 } from 'lucide-react'
+import { onboardUser } from '../../server/functions/users'
+import { Web3Guard, invalidateAuthCache } from '@/Auth/components/web3-guard'
 
 export const Route = createFileRoute('/onboarding')({
   component: OnboardingFlow,
 })
 
-type Role = 'investor' | 'issuer' | null
-
 function OnboardingFlow() {
-  const [selectedRole, setSelectedRole] = useState<Role>(null)
-  const [isProcessing, setIsProcessing] = useState(false)
-
   const { address } = useAccount()
   const navigate = useNavigate()
 
-  const registerUserFn = useServerFn(registerUser)
-  const recordKycFn = useServerFn(recordKycVerification)
+  // General User State
+  const [role, setRole] = useState<'investor' | 'issuer' | null>(null)
+  const [displayName, setDisplayName] = useState('')
+  const [email, setEmail] = useState('')
 
-  const handleReclaimSuccess = async () => {
-    if (!address || !selectedRole) return
-    setIsProcessing(true)
+  // Company State (Only used if role === 'issuer')
+  const [companyName, setCompanyName] = useState('')
+  const [companyDescription, setCompanyDescription] = useState('')
+  const [website, setWebsite] = useState('')
 
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const handleSubmit = async () => {
+    if (!address) return alert('Please connect your wallet first.')
+    if (!role) return alert('Please select a role.')
+    if (!displayName.trim()) return alert('Please enter your name.')
+
+    // Validate Issuer-specific requirements
+    if (role === 'issuer' && !companyName.trim()) {
+      return alert('Company name is required for Issuers.')
+    }
+
+    setIsSubmitting(true)
     try {
-      await registerUserFn({
+      await onboardUser({
         data: {
           walletAddress: address,
-          role: selectedRole,
+          role: role,
+          displayName: displayName.trim(),
+          email: email.trim() || undefined,
+          companyName: role === 'issuer' ? companyName.trim() : undefined,
+          companyDescription:
+            role === 'issuer' ? companyDescription.trim() : undefined,
+          website: role === 'issuer' ? website.trim() : undefined,
         },
       })
 
-      const mockTxHash = '0xMockHashWaitUntilSmartContractIsReady...'
+      // Clear the auth cache so the dashboard guard sees the new user.
+      if (address) invalidateAuthCache(address)
 
-      await recordKycFn({
-        data: {
-          walletAddress: address,
-          txHash: mockTxHash,
-          chainId: 43113,
-          signature: 'reclaim-verification-signature',
-        },
-      })
-
-      navigate({ to: selectedRole === 'investor' ? '/investor' : '/issuer' })
+      // Route them to their specific dashboard
+      navigate({ to: role === 'investor' ? '/investor' : '/issuer' })
     } catch (error) {
-      console.error('Failed to complete onboarding:', error)
+      console.error(error)
+      alert(
+        'Failed to create profile. Your wallet might already be registered.',
+      )
     } finally {
-      setIsProcessing(false)
+      setIsSubmitting(false)
     }
   }
 
   return (
-    <div className="min-h-screen bg-[#faf8ff] text-[#131b2e] font-sans flex items-center justify-center p-6 selection:bg-[#004ac6]/20">
-      <div className="max-w-2xl w-full">
-        {/* Header */}
-        <div className="text-center mb-12 space-y-4">
-          <div className="size-12 rounded-2xl bg-gradient-to-br from-[#004ac6] to-[#2563eb] flex items-center justify-center shadow-[0_8px_16px_rgba(0,74,198,0.2)] mx-auto mb-6">
-            <ShieldCheck className="size-6 text-white" />
+    <Web3Guard allowedRole="onboarding">
+      <div className="min-h-screen bg-[#faf8ff] text-[#131b2e] font-sans selection:bg-[#004ac6]/20 py-12 px-6">
+        <main className="w-full max-w-2xl mx-auto space-y-10">
+          <div className="text-center space-y-3">
+            <h1 className="text-4xl font-extrabold tracking-tight">
+              Complete Your Profile
+            </h1>
+            <p className="text-[#131b2e]/60 text-lg">
+              Link your wallet{' '}
+              <span className="font-mono text-sm bg-gray-200 px-2 py-1 rounded-md">
+                {address?.slice(0, 6)}...{address?.slice(-4)}
+              </span>{' '}
+              to your identity.
+            </p>
           </div>
-          <h1 className="text-4xl font-extrabold tracking-tight text-[#131b2e]">
-            Verify Your Identity
-          </h1>
-          <p className="text-[#131b2e]/60 text-lg max-w-md mx-auto leading-relaxed">
-            Polyquity requires zero-knowledge identity verification to comply
-            with global securities regulations.
-          </p>
-        </div>
 
-        <div className="bg-[#ffffff] rounded-2xl p-8 shadow-[0_24px_40px_rgba(19,27,46,0.05)] border border-[#c3c6d7]/20 relative overflow-hidden">
-          {!selectedRole ? (
-            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <h2 className="text-sm font-bold text-[#131b2e]/50 uppercase tracking-widest text-center mb-8">
-                Select Your Network Role
-              </h2>
-
+          <div className="bg-[#ffffff] p-8 md:p-10 rounded-2xl shadow-[0_24px_40px_rgba(19,27,46,0.05)] border border-[#c3c6d7]/20 space-y-8">
+            {/* 1. Role Selection */}
+            <div className="space-y-4">
+              <label className="block text-sm font-bold text-[#131b2e]/60 uppercase tracking-wide">
+                I want to...
+              </label>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <button
-                  onClick={() => setSelectedRole('investor')}
-                  className="group bg-[#faf8ff] border border-[#c3c6d7]/30 rounded-xl p-6 text-left hover:border-[#004ac6]/50 hover:bg-[#f2f3ff] transition-all flex flex-col gap-4"
+                  onClick={() => setRole('investor')}
+                  className={`flex items-center gap-4 p-5 rounded-xl border-2 transition-all duration-200 text-left ${
+                    role === 'investor'
+                      ? 'border-[#004ac6] bg-[#f2f3ff] shadow-sm'
+                      : 'border-[#c3c6d7]/30 bg-white'
+                  }`}
                 >
-                  <div className="size-10 rounded-lg bg-[#ffffff] shadow-[0_4px_12px_rgba(19,27,46,0.05)] flex items-center justify-center group-hover:scale-110 transition-transform">
-                    <Briefcase className="size-5 text-[#004ac6]" />
+                  <div
+                    className={`p-2.5 rounded-lg ${role === 'investor' ? 'bg-[#004ac6] text-white' : 'bg-gray-100 text-gray-500'}`}
+                  >
+                    <UserCircle className="size-6" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-lg text-[#131b2e] mb-1">
-                      Investor
-                    </h3>
-                    <p className="text-sm text-[#131b2e]/60 leading-relaxed">
-                      I want to deploy capital and bid on institutional
-                      tokenized equity.
+                    <h3 className="font-bold text-lg">Invest</h3>
+                    <p className="text-xs font-medium text-[#131b2e]/60">
+                      Deploy capital
                     </p>
                   </div>
                 </button>
 
                 <button
-                  onClick={() => setSelectedRole('issuer')}
-                  className="group bg-[#faf8ff] border border-[#c3c6d7]/30 rounded-xl p-6 text-left hover:border-[#004ac6]/50 hover:bg-[#f2f3ff] transition-all flex flex-col gap-4"
+                  onClick={() => setRole('issuer')}
+                  className={`flex items-center gap-4 p-5 rounded-xl border-2 transition-all duration-200 text-left ${
+                    role === 'issuer'
+                      ? 'border-[#004ac6] bg-[#f2f3ff] shadow-sm'
+                      : 'border-[#c3c6d7]/30 bg-white'
+                  }`}
                 >
-                  <div className="size-10 rounded-lg bg-[#ffffff] shadow-[0_4px_12px_rgba(19,27,46,0.05)] flex items-center justify-center group-hover:scale-110 transition-transform">
-                    <Building2 className="size-5 text-[#004ac6]" />
+                  <div
+                    className={`p-2.5 rounded-lg ${role === 'issuer' ? 'bg-[#004ac6] text-white' : 'bg-gray-100 text-gray-500'}`}
+                  >
+                    <Building2 className="size-6" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-lg text-[#131b2e] mb-1">
-                      Issuer
-                    </h3>
-                    <p className="text-sm text-[#131b2e]/60 leading-relaxed">
-                      I want to deploy a smart contract and raise capital for my
-                      enterprise.
+                    <h3 className="font-bold text-lg">Raise Capital</h3>
+                    <p className="text-xs font-medium text-[#131b2e]/60">
+                      Issue an IPO
                     </p>
                   </div>
                 </button>
               </div>
             </div>
-          ) : (
-            <div className="space-y-8 animate-in fade-in zoom-in-95 duration-500 flex flex-col items-center text-center py-6">
-              <div className="size-20 rounded-full bg-[#f2f3ff] flex items-center justify-center border-8 border-[#ffffff] shadow-[0_8px_24px_rgba(19,27,46,0.05)]">
-                <Fingerprint className="size-8 text-[#004ac6]" />
-              </div>
 
-              <div className="space-y-2">
-                <h2 className="text-2xl font-bold tracking-tight text-[#131b2e]">
-                  Verify Professional ID
-                </h2>
-                <p className="text-[#131b2e]/60 text-sm max-w-sm mx-auto leading-relaxed">
-                  You are registering as an{' '}
-                  <strong className="text-[#131b2e] capitalize">
-                    {selectedRole}
-                  </strong>
-                  . Verify your LinkedIn profile for KYC compliance. Your data remains private via zero-knowledge proofs.
-                </p>
+            {/* 2. Standard User Details */}
+            {role && (
+              <div className="space-y-4 animate-in fade-in slide-in-from-top-4 duration-300">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="block text-sm font-bold text-[#131b2e]/60 uppercase">
+                      Your Name
+                    </label>
+                    <input
+                      type="text"
+                      value={displayName}
+                      onChange={(e) => setDisplayName(e.target.value)}
+                      placeholder="Jane Doe"
+                      className="w-full bg-[#f2f3ff] border border-[#c3c6d7]/50 rounded-xl px-4 py-3 focus:outline-none focus:border-[#004ac6]/50 focus:ring-2 focus:ring-[#004ac6]/20 font-medium"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-sm font-bold text-[#131b2e]/60 uppercase">
+                      Email (Optional)
+                    </label>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="jane@example.com"
+                      className="w-full bg-[#f2f3ff] border border-[#c3c6d7]/50 rounded-xl px-4 py-3 focus:outline-none focus:border-[#004ac6]/50 focus:ring-2 focus:ring-[#004ac6]/20 font-medium"
+                    />
+                  </div>
+                </div>
               </div>
+            )}
 
-              <div className="pt-4 w-full max-w-xs">
-                <ReclaimVerification onSuccess={handleReclaimSuccess} />
+            {/* 3. Company Details (Only if Issuer) */}
+            {role === 'issuer' && (
+              <div className="space-y-4 pt-6 border-t border-[#c3c6d7]/20 animate-in fade-in slide-in-from-top-4 duration-500">
+                <h3 className="text-xl font-bold">Company Profile</h3>
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-bold text-[#131b2e]/60 uppercase">
+                    Registered Company Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                    placeholder="e.g. QuantX Infrastructure Ltd."
+                    className="w-full bg-[#f2f3ff] border border-[#c3c6d7]/50 rounded-xl px-4 py-3 focus:outline-none focus:border-[#004ac6]/50 focus:ring-2 focus:ring-[#004ac6]/20 font-medium"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-bold text-[#131b2e]/60 uppercase">
+                    Short Description
+                  </label>
+                  <textarea
+                    value={companyDescription}
+                    onChange={(e) => setCompanyDescription(e.target.value)}
+                    placeholder="What does your company do?"
+                    rows={3}
+                    className="w-full bg-[#f2f3ff] border border-[#c3c6d7]/50 rounded-xl px-4 py-3 focus:outline-none focus:border-[#004ac6]/50 focus:ring-2 focus:ring-[#004ac6]/20 font-medium resize-none"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-bold text-[#131b2e]/60 uppercase">
+                    Website URL
+                  </label>
+                  <input
+                    type="url"
+                    value={website}
+                    onChange={(e) => setWebsite(e.target.value)}
+                    placeholder="https://..."
+                    className="w-full bg-[#f2f3ff] border border-[#c3c6d7]/50 rounded-xl px-4 py-3 focus:outline-none focus:border-[#004ac6]/50 focus:ring-2 focus:ring-[#004ac6]/20 font-medium"
+                  />
+                </div>
               </div>
+            )}
 
+            {/* Submit Action */}
+            <div className="pt-6">
               <button
-                onClick={() => setSelectedRole(null)}
-                className="text-xs font-bold text-[#131b2e]/40 hover:text-[#131b2e]/80 uppercase tracking-widest transition-colors mt-4 disabled:opacity-50"
-                disabled={isProcessing}
+                onClick={handleSubmit}
+                disabled={
+                  !role ||
+                  !displayName ||
+                  (role === 'issuer' && !companyName) ||
+                  isSubmitting
+                }
+                className="w-full bg-gradient-to-br from-[#004ac6] to-[#2563eb] text-white rounded-xl py-4 px-6 font-bold text-lg shadow-[0_8px_16px_rgba(0,74,198,0.15)] hover:shadow-[0_12px_24px_rgba(0,74,198,0.25)] hover:-translate-y-0.5 transition-all active:scale-[0.98] flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
               >
-                Change Role
+                {isSubmitting ? (
+                  <Loader2 className="size-5 animate-spin" />
+                ) : (
+                  'Complete Registration'
+                )}
               </button>
             </div>
-          )}
-        </div>
+          </div>
+        </main>
       </div>
-    </div>
+    </Web3Guard>
   )
 }

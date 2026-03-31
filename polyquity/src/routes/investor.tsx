@@ -11,7 +11,11 @@ import {
   useWaitForTransactionReceipt,
   useAccount,
 } from 'wagmi'
+// import { getAccount } from '@wagmi/core'
+// import { config } from '@/lib/wagmi'
 import { POLY_IPO_ABI, MINIMAL_ERC20_ABI } from '../lib/constants'
+import { Web3Guard } from '@/Auth/components/web3-guard'
+// import { getUser } from 'server/functions/users'
 
 export const Route = createFileRoute('/investor')({
   loader: async () => {
@@ -341,103 +345,108 @@ function InvestorDashboard() {
   const ipos = iposData.ipos
 
   return (
-    <div className="min-h-screen bg-[#faf8ff] text-[#131b2e] font-sans selection:bg-[#004ac6]/20">
-      {/* 1. The Glassmorphic Top Nav */}
-      <header className="sticky top-0 z-50 bg-[#ffffff]/80 backdrop-blur-md px-6 py-4 flex items-center justify-between shadow-[0_4px_20px_rgba(19,27,46,0.02)]">
-        <div className="flex items-center gap-2">
-          <div className="size-8 rounded-xl bg-gradient-to-br from-[#004ac6] to-[#2563eb] flex items-center justify-center shadow-[0_8px_16px_rgba(0,74,198,0.2)]">
-            <div className="size-3 bg-white rounded-full opacity-90" />
-          </div>
-          <span className="font-extrabold tracking-widest uppercase text-sm text-[#131b2e]">
-            Polyquity
-          </span>
-        </div>
-
-        <div className="flex items-center gap-6">
-          <button className="text-[#131b2e]/60 hover:text-[#131b2e] transition-colors relative">
-            <Bell className="size-5" />
-            <span className="absolute top-0 right-0 size-2 bg-[#2563eb] rounded-full ring-2 ring-[#ffffff]" />
-          </button>
-          <WalletConnectButton />
-        </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-6 lg:px-8 py-12 space-y-16">
-        {/* Page Header */}
-        <div className="space-y-2">
-          <h1 className="text-4xl lg:text-5xl font-extrabold tracking-tight text-[#131b2e]">
-            Investor Vault
-          </h1>
-          <p className="text-[#131b2e]/60 text-lg max-w-2xl leading-relaxed">
-            Manage your deployed capital, monitor active bids, and discover
-            institutional-grade tokenized equity offerings.
-          </p>
-        </div>
-
-        {/* 2. Portfolio Overview (The Vault Layer) */}
-        <section className="bg-[#f2f3ff] p-6 lg:p-8 rounded-xl">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8">
-            <div className="bg-[#ffffff] rounded-xl p-6 shadow-[0_24px_40px_rgba(19,27,46,0.05)] flex flex-col justify-between h-32">
-              <span className="text-sm font-semibold tracking-wide text-[#131b2e]/50 uppercase">
-                Total Capital Deployed
-              </span>
-              <span className="text-3xl font-extrabold tracking-tight">
-                0.00 ETH
-              </span>
+    <Web3Guard allowedRole="investor">
+      <div className="min-h-screen bg-[#faf8ff] text-[#131b2e] font-sans selection:bg-[#004ac6]/20">
+        {/* 1. The Glassmorphic Top Nav */}
+        <header className="sticky top-0 z-50 bg-[#ffffff]/80 backdrop-blur-md px-6 py-4 flex items-center justify-between shadow-[0_4px_20px_rgba(19,27,46,0.02)]">
+          <div className="flex items-center gap-2">
+            <div className="size-8 rounded-xl bg-gradient-to-br from-[#004ac6] to-[#2563eb] flex items-center justify-center shadow-[0_8px_16px_rgba(0,74,198,0.2)]">
+              <div className="size-3 bg-white rounded-full opacity-90" />
             </div>
-            <div className="bg-[#ffffff] rounded-xl p-6 shadow-[0_24px_40px_rgba(19,27,46,0.05)] flex flex-col justify-between h-32">
-              <span className="text-sm font-semibold tracking-wide text-[#131b2e]/50 uppercase">
-                Active Bids
-              </span>
-              <span className="text-3xl font-extrabold tracking-tight">0</span>
-            </div>
-            <div className="bg-[#ffffff] rounded-xl p-6 shadow-[0_24px_40px_rgba(19,27,46,0.05)] flex flex-col justify-between h-32">
-              <span className="text-sm font-semibold tracking-wide text-[#131b2e]/50 uppercase">
-                Available Liquidity
-              </span>
-              <span className="text-3xl font-extrabold tracking-tight text-[#004ac6]">
-                0.00 ETH
-              </span>
-            </div>
-          </div>
-        </section>
-
-        {/* 3. Active Offerings Grid */}
-        <section className="space-y-8">
-          <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-bold tracking-tight">
-              Active Offerings
-            </h2>
-            <Link
-              to="/offerings"
-              className="text-sm font-semibold text-[#004ac6] flex items-center gap-1 hover:opacity-80 transition-opacity"
-            >
-              View All <ChevronRight className="size-4" />
-            </Link>
+            <span className="font-extrabold tracking-widest uppercase text-sm text-[#131b2e]">
+              Polyquity
+            </span>
           </div>
 
-          {ipos.length === 0 ? (
-            <div className="bg-[#ffffff] rounded-xl p-12 shadow-[0_24px_40px_rgba(19,27,46,0.05)] border border-[#c3c6d7]/20 flex flex-col items-center justify-center text-center">
-              <div className="size-16 rounded-full bg-[#f2f3ff] flex items-center justify-center mb-4">
-                <Activity className="size-8 text-[#004ac6]/40" />
+          <div className="flex items-center gap-6">
+            <button className="text-[#131b2e]/60 hover:text-[#131b2e] transition-colors relative">
+              <Bell className="size-5" />
+              <span className="absolute top-0 right-0 size-2 bg-[#2563eb] rounded-full ring-2 ring-[#ffffff]" />
+            </button>
+            <WalletConnectButton />
+          </div>
+        </header>
+
+        <main className="max-w-7xl mx-auto px-6 lg:px-8 py-12 space-y-16">
+          {/* Page Header */}
+          <div className="space-y-2">
+            <h1 className="text-4xl lg:text-5xl font-extrabold tracking-tight text-[#131b2e]">
+              Investor Vault
+            </h1>
+            <p className="text-[#131b2e]/60 text-lg max-w-2xl leading-relaxed">
+              Manage your deployed capital, monitor active bids, and discover
+              institutional-grade tokenized equity offerings.
+            </p>
+          </div>
+
+          {/* 2. Portfolio Overview (The Vault Layer) */}
+          <section className="bg-[#f2f3ff] p-6 lg:p-8 rounded-xl">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8">
+              <div className="bg-[#ffffff] rounded-xl p-6 shadow-[0_24px_40px_rgba(19,27,46,0.05)] flex flex-col justify-between h-32">
+                <span className="text-sm font-semibold tracking-wide text-[#131b2e]/50 uppercase">
+                  Total Capital Deployed
+                </span>
+                <span className="text-3xl font-extrabold tracking-tight">
+                  0.00 ETH
+                </span>
               </div>
-              <h3 className="text-xl font-bold text-[#131b2e] mb-2">
-                No Active Offerings
-              </h3>
-              <p className="text-[#131b2e]/60 max-w-md mx-auto">
-                There are currently no active institutional offerings on the
-                network. Check back soon or ensure your node indexer is running.
-              </p>
+              <div className="bg-[#ffffff] rounded-xl p-6 shadow-[0_24px_40px_rgba(19,27,46,0.05)] flex flex-col justify-between h-32">
+                <span className="text-sm font-semibold tracking-wide text-[#131b2e]/50 uppercase">
+                  Active Bids
+                </span>
+                <span className="text-3xl font-extrabold tracking-tight">
+                  0
+                </span>
+              </div>
+              <div className="bg-[#ffffff] rounded-xl p-6 shadow-[0_24px_40px_rgba(19,27,46,0.05)] flex flex-col justify-between h-32">
+                <span className="text-sm font-semibold tracking-wide text-[#131b2e]/50 uppercase">
+                  Available Liquidity
+                </span>
+                <span className="text-3xl font-extrabold tracking-tight text-[#004ac6]">
+                  0.00 ETH
+                </span>
+              </div>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {ipos.map((ipo) => (
-                <LiveIPOCard key={ipo.id} ipo={ipo} />
-              ))}
+          </section>
+
+          {/* 3. Active Offerings Grid */}
+          <section className="space-y-8">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold tracking-tight">
+                Active Offerings
+              </h2>
+              <Link
+                to="/offerings"
+                className="text-sm font-semibold text-[#004ac6] flex items-center gap-1 hover:opacity-80 transition-opacity"
+              >
+                View All <ChevronRight className="size-4" />
+              </Link>
             </div>
-          )}
-        </section>
-      </main>
-    </div>
+
+            {ipos.length === 0 ? (
+              <div className="bg-[#ffffff] rounded-xl p-12 shadow-[0_24px_40px_rgba(19,27,46,0.05)] border border-[#c3c6d7]/20 flex flex-col items-center justify-center text-center">
+                <div className="size-16 rounded-full bg-[#f2f3ff] flex items-center justify-center mb-4">
+                  <Activity className="size-8 text-[#004ac6]/40" />
+                </div>
+                <h3 className="text-xl font-bold text-[#131b2e] mb-2">
+                  No Active Offerings
+                </h3>
+                <p className="text-[#131b2e]/60 max-w-md mx-auto">
+                  There are currently no active institutional offerings on the
+                  network. Check back soon or ensure your node indexer is
+                  running.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {ipos.map((ipo) => (
+                  <LiveIPOCard key={ipo.id} ipo={ipo} />
+                ))}
+              </div>
+            )}
+          </section>
+        </main>
+      </div>
+    </Web3Guard>
   )
 }
