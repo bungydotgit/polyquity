@@ -19,6 +19,11 @@ export const ipoStatusEnum = pgEnum('ipo_status', [
   'finalized',
   'cancelled',
 ])
+export const investmentStatusEnum = pgEnum('investment_status', [
+  'locked',
+  'claimed',
+  'refunded',
+])
 
 // ─── Users ───────────────────────────────────────────────────────────────────
 
@@ -39,6 +44,7 @@ export const usersRelations = relations(users, ({ many, one }) => ({
     fields: [users.walletAddress],
     references: [companies.ownerWallet],
   }),
+  investments: many(investments),
 }))
 
 // ─── Companies ───────────────────────────────────────────────────────────────
@@ -105,10 +111,37 @@ export const ipos = pgTable('ipos', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
-export const iposRelations = relations(ipos, ({ one }) => ({
+export const iposRelations = relations(ipos, ({ one, many }) => ({
   company: one(companies, {
     fields: [ipos.companyId],
     references: [companies.id],
+  }),
+  investments: many(investments),
+}))
+
+// ─── Investments ─────────────────────────────────────────────────────────────
+
+export const investments = pgTable('investments', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  ipoId: uuid('ipo_id')
+    .notNull()
+    .references(() => ipos.id),
+  investorWallet: varchar('investor_wallet', { length: 42 }).notNull(),
+  amountWei: varchar('amount_wei', { length: 100 }).notNull(),
+  status: investmentStatusEnum('status').notNull().default('locked'),
+  txHash: varchar('tx_hash', { length: 66 }).notNull().unique(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const investmentsRelations = relations(investments, ({ one }) => ({
+  ipo: one(ipos, {
+    fields: [investments.ipoId],
+    references: [ipos.id],
+  }),
+  investor: one(users, {
+    fields: [investments.investorWallet],
+    references: [users.walletAddress],
   }),
 }))
 
@@ -122,3 +155,5 @@ export type KycVerification = typeof kycVerifications.$inferSelect
 export type NewKycVerification = typeof kycVerifications.$inferInsert
 export type Ipo = typeof ipos.$inferSelect
 export type NewIpo = typeof ipos.$inferInsert
+export type Investment = typeof investments.$inferSelect
+export type NewInvestment = typeof investments.$inferInsert

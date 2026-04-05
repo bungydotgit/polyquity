@@ -1,9 +1,9 @@
 import 'dotenv/config'
-import { createPublicClient, formatEther, http } from 'viem'
+import { createPublicClient, http } from 'viem'
 import { anvil } from 'viem/chains'
 import { db } from '../db/index'
-import { ipos } from '../db/schema'
-import { eq } from 'drizzle-orm'
+import { ipos, investments } from '../db/schema'
+import { eq, and } from 'drizzle-orm'
 import { POLY_IPO_ABI } from '../../src/lib/constants'
 
 // Pull the factory address from your environment variables
@@ -16,7 +16,7 @@ if (!POLYFACTORY_ADDRESS) {
   process.exit(1)
 }
 
-// The exact event signature from your new PolyFactory contract
+// The exact event signature from your PolyFactory contract
 const IPOCreatedEvent = {
   type: 'event' as const,
   name: 'IPOCreated',
@@ -48,7 +48,6 @@ async function handleIPOCreated(args: any) {
   console.log(`Contract: ${normalizedIpoAddress}`)
 
   try {
-    // Check if it already exists to prevent duplicates
     const existing = await db.query.ipos.findFirst({
       where: (t, { eq }) => eq(t.contractAddress, normalizedIpoAddress),
     })
@@ -60,19 +59,18 @@ async function handleIPOCreated(args: any) {
       return
     }
 
-    // Insert the real data from the blockchain into Postgres
     await db.insert(ipos).values({
       contractAddress: normalizedIpoAddress,
       ipfsDocCid: args.ipfsCID,
       issuerWallet: args.companyWallet.toLowerCase(),
       tokenName: args.tokenName,
       tokenSymbol: args.tokenSymbol,
-      // Convert Unix seconds back to JavaScript Date objects
       startTime: new Date(Number(args.startTime) * 1000),
       endTime: new Date(Number(args.endTime) * 1000),
       pricePerToken: args.tokenPrice.toString(),
-      totalTokens: args.hardCap.toString(), // Usually hardcap dictates max tokens
+      totalTokens: args.hardCap.toString(),
       totalRaised: '0',
+      status: 'active', // Mark it active right away
     })
 
     console.log(
@@ -91,56 +89,149 @@ async function main() {
   console.log(`[indexer] Chain: ${anvil.name} (http://127.0.0.1:8545)`)
   console.log(`[indexer] PolyFactory address: ${POLYFACTORY_ADDRESS}`)
 
+  // 1. WATCH FOR NEW IPOS
   client.watchContractEvent({
     address: POLYFACTORY_ADDRESS,
     abi: [IPOCreatedEvent],
     eventName: 'IPOCreated',
     onLogs: (logs) => {
       for (const log of logs) {
-        if (log.args) {
-          handleIPOCreated(log.args).catch(console.error)
-        }
+        if (log.args) handleIPOCreated(log.args).catch(console.error)
       }
-    },
-    onError: (error) => {
-      console.error('[indexer] Watch error:', error)
     },
   })
 
+  // 2. WATCH FOR NEW BIDS
   client.watchContractEvent({
-    // Notice we don't provide an address here!
-    // This tells Viem to listen to ANY contract that emits this event.
     abi: POLY_IPO_ABI,
-    eventName: 'BidPlaced', // Check your Solidity file for the exact event name!
+    eventName: 'BidPlaced',
     onLogs: async (logs) => {
       for (const log of logs) {
         try {
           const ipoAddress = log.address.toLowerCase()
+          const txHash = log.transactionHash
 
-          // Assuming your event has args: (address investor, uint256 amount, uint256 newTotalRaised)
-          const newTotalRaisedWei = log.args.totalRaised
+          // @ts-ignore - Assuming args match the ABI
+          const { bidder, accepted, totalRaised } = log.args
 
-          if (newTotalRaisedWei !== undefined) {
-            const totalRaisedEth = formatEther(newTotalRaisedWei)
+          // 1. Get the IPO ID from the DB
+          const ipoRecord = await db.query.ipos.findFirst({
+            where: eq(ipos.contractAddress, ipoAddress),
+          })
 
-            // Update the database!
-            await db
-              .update(ipos)
-              .set({ totalRaised: totalRaisedEth })
-              .where(eq(ipos.contractAddress, ipoAddress))
-
-            console.log(
-              `✅ DB Updated: IPO ${ipoAddress} now has ${totalRaisedEth} ETH`,
+          if (!ipoRecord) {
+            console.error(
+              `[indexer] Received bid for unknown IPO: ${ipoAddress}`,
             )
+            continue
           }
+
+          // 2. Insert the Investment Record
+          await db.insert(investments).values({
+            ipoId: ipoRecord.id,
+            investorWallet: bidder!.toLowerCase(),
+            amountWei: accepted!.toString(),
+            txHash: txHash,
+            status: 'locked',
+          })
+
+          // 3. Update the total raised on the IPO
+          await db
+            .update(ipos)
+            .set({ totalRaised: totalRaised?.toString() })
+            .where(eq(ipos.id, ipoRecord.id))
+
+          console.log(
+            `💰 [indexer] Bid recorded: ${accepted} wei from ${bidder}`,
+          )
         } catch (err) {
-          console.error('Error processing bid event:', err)
+          console.error('[indexer] Error processing bid event:', err)
         }
       }
     },
   })
 
-  console.log('[indexer] Watching for new IPOCreated events...')
+  // 3. WATCH FOR IPO FINALIZATION
+  client.watchContractEvent({
+    abi: POLY_IPO_ABI,
+    eventName: 'IPOFinalized',
+    onLogs: async (logs) => {
+      for (const log of logs) {
+        try {
+          const ipoAddress = log.address.toLowerCase()
+          // @ts-ignore
+          const newState = log.args.newState === 1 ? 'finalized' : 'cancelled'
+
+          await db
+            .update(ipos)
+            .set({ status: newState })
+            .where(eq(ipos.contractAddress, ipoAddress))
+
+          console.log(
+            `🏁 [indexer] IPO ${ipoAddress} ended with status: ${newState}`,
+          )
+        } catch (err) {
+          console.error('[indexer] Error processing finalize event:', err)
+        }
+      }
+    },
+  })
+
+  // 4. WATCH FOR CLAIMED TOKENS (SUCCESS PATH)
+  client.watchContractEvent({
+    abi: POLY_IPO_ABI,
+    eventName: 'TokensClaimed',
+    onLogs: async (logs) => {
+      for (const log of logs) {
+        try {
+          // @ts-ignore
+          const investor = log.args.investor.toLowerCase()
+          console.log(`✅ [indexer] Investor ${investor} claimed tokens`)
+
+          await db
+            .update(investments)
+            .set({ status: 'claimed', updatedAt: new Date() })
+            .where(
+              and(
+                eq(investments.investorWallet, investor),
+                eq(investments.status, 'locked'),
+              ),
+            )
+        } catch (err) {
+          console.error('[indexer] Error processing token claim:', err)
+        }
+      }
+    },
+  })
+
+  // 5. WATCH FOR CLAIMED REFUNDS (FAILURE PATH)
+  client.watchContractEvent({
+    abi: POLY_IPO_ABI,
+    eventName: 'RefundClaimed',
+    onLogs: async (logs) => {
+      for (const log of logs) {
+        try {
+          // @ts-ignore
+          const investor = log.args.investor.toLowerCase()
+          console.log(`↩️ [indexer] Investor ${investor} claimed refund`)
+
+          await db
+            .update(investments)
+            .set({ status: 'refunded', updatedAt: new Date() })
+            .where(
+              and(
+                eq(investments.investorWallet, investor),
+                eq(investments.status, 'locked'),
+              ),
+            )
+        } catch (err) {
+          console.error('[indexer] Error processing refund claim:', err)
+        }
+      }
+    },
+  })
+
+  console.log('[indexer] Watching for Web3 events...')
   console.log('[indexer] Indexer running. Press Ctrl+C to stop.')
 
   // Keep the process alive

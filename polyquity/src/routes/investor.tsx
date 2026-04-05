@@ -10,9 +10,11 @@ import {
   useReadContract,
   useWaitForTransactionReceipt,
   useAccount,
+  useBalance,
 } from 'wagmi'
 // import { getAccount } from '@wagmi/core'
 // import { config } from '@/lib/wagmi'
+import { getInvestorStats } from 'server/functions/stats'
 import { POLY_IPO_ABI, MINIMAL_ERC20_ABI } from '../lib/constants'
 import { Web3Guard } from '@/Auth/components/web3-guard'
 // import { getUser } from 'server/functions/users'
@@ -344,6 +346,19 @@ function InvestorDashboard() {
   const { iposData } = useLoaderData({ from: '/investor' })
   const ipos = iposData.ipos
 
+  const { address } = useAccount()
+  const { data: ethBalance } = useBalance({ address })
+  const [stats, setStats] = useState({ activeBids: 0, totalDeployedWei: '0' })
+
+  useEffect(() => {
+    if (address) {
+      // Call our TanStack server function!
+      getInvestorStats({ data: { walletAddress: address } })
+        .then(setStats)
+        .catch(console.error)
+    }
+  }, [address])
+
   return (
     <Web3Guard allowedRole="investor">
       <div className="min-h-screen bg-[#faf8ff] text-[#131b2e] font-sans selection:bg-[#004ac6]/20">
@@ -382,28 +397,35 @@ function InvestorDashboard() {
           {/* 2. Portfolio Overview (The Vault Layer) */}
           <section className="bg-[#f2f3ff] p-6 lg:p-8 rounded-xl">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8">
+              {/* Box 1: Total Capital Deployed */}
               <div className="bg-[#ffffff] rounded-xl p-6 shadow-[0_24px_40px_rgba(19,27,46,0.05)] flex flex-col justify-between h-32">
                 <span className="text-sm font-semibold tracking-wide text-[#131b2e]/50 uppercase">
                   Total Capital Deployed
                 </span>
                 <span className="text-3xl font-extrabold tracking-tight">
-                  0.00 ETH
+                  {formatNativeCurrency(stats.totalDeployedWei, 18)}
                 </span>
               </div>
+
+              {/* Box 2: Active Bids */}
               <div className="bg-[#ffffff] rounded-xl p-6 shadow-[0_24px_40px_rgba(19,27,46,0.05)] flex flex-col justify-between h-32">
                 <span className="text-sm font-semibold tracking-wide text-[#131b2e]/50 uppercase">
                   Active Bids
                 </span>
                 <span className="text-3xl font-extrabold tracking-tight">
-                  0
+                  {stats.activeBids}
                 </span>
               </div>
+
+              {/* Box 3: Available Liquidity */}
               <div className="bg-[#ffffff] rounded-xl p-6 shadow-[0_24px_40px_rgba(19,27,46,0.05)] flex flex-col justify-between h-32">
                 <span className="text-sm font-semibold tracking-wide text-[#131b2e]/50 uppercase">
                   Available Liquidity
                 </span>
                 <span className="text-3xl font-extrabold tracking-tight text-[#004ac6]">
-                  0.00 ETH
+                  {ethBalance
+                    ? `${Number(ethBalance.formatted).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} ETH`
+                    : '0.00 ETH'}
                 </span>
               </div>
             </div>
