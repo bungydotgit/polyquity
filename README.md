@@ -5,12 +5,13 @@
 - [x] Document upload to IPFS
 - [x] Withdraw ETH (Issuer success path)
 - [x] Claim Tokens (Investor success path)
+- [x] Claim Refund (Investor failure path)
+- [x] Show investment token balance on dashboard
+- [x] Custom Viem indexer + DB sync _(partially done)_
 
 ## ⏳ In Progress / TODO
 
-- [ ] Claim Refund (Investor failure path)
-- [ ] Show investment token balance on dashboard
-- [ ] Custom Viem indexer + DB sync _(partially done)_
+
 - [ ] IPO details page (dynamic routing)
 - [ ] Show documents natively on IPO page
 - [ ] Company registration & onboarding (Web2, no KYC yet)
