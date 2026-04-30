@@ -10,19 +10,15 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
-import { Route as OfferingsRouteImport } from './routes/offerings'
 import { Route as IssuerRouteImport } from './routes/issuer'
 import { Route as InvestorRouteImport } from './routes/investor'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as OfferingsIndexRouteImport } from './routes/offerings.index'
+import { Route as OfferingsAddressRouteImport } from './routes/offerings_.$address'
 
 const OnboardingRoute = OnboardingRouteImport.update({
   id: '/onboarding',
   path: '/onboarding',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OfferingsRoute = OfferingsRouteImport.update({
-  id: '/offerings',
-  path: '/offerings',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IssuerRoute = IssuerRouteImport.update({
@@ -40,43 +36,76 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OfferingsIndexRoute = OfferingsIndexRouteImport.update({
+  id: '/offerings/',
+  path: '/offerings/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OfferingsAddressRoute = OfferingsAddressRouteImport.update({
+  id: '/offerings_/$address',
+  path: '/offerings/$address',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/investor': typeof InvestorRoute
   '/issuer': typeof IssuerRoute
-  '/offerings': typeof OfferingsRoute
   '/onboarding': typeof OnboardingRoute
+  '/offerings/$address': typeof OfferingsAddressRoute
+  '/offerings/': typeof OfferingsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/investor': typeof InvestorRoute
   '/issuer': typeof IssuerRoute
-  '/offerings': typeof OfferingsRoute
   '/onboarding': typeof OnboardingRoute
+  '/offerings/$address': typeof OfferingsAddressRoute
+  '/offerings': typeof OfferingsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/investor': typeof InvestorRoute
   '/issuer': typeof IssuerRoute
-  '/offerings': typeof OfferingsRoute
   '/onboarding': typeof OnboardingRoute
+  '/offerings_/$address': typeof OfferingsAddressRoute
+  '/offerings/': typeof OfferingsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/investor' | '/issuer' | '/offerings' | '/onboarding'
+  fullPaths:
+    | '/'
+    | '/investor'
+    | '/issuer'
+    | '/onboarding'
+    | '/offerings/$address'
+    | '/offerings/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/investor' | '/issuer' | '/offerings' | '/onboarding'
-  id: '__root__' | '/' | '/investor' | '/issuer' | '/offerings' | '/onboarding'
+  to:
+    | '/'
+    | '/investor'
+    | '/issuer'
+    | '/onboarding'
+    | '/offerings/$address'
+    | '/offerings'
+  id:
+    | '__root__'
+    | '/'
+    | '/investor'
+    | '/issuer'
+    | '/onboarding'
+    | '/offerings_/$address'
+    | '/offerings/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   InvestorRoute: typeof InvestorRoute
   IssuerRoute: typeof IssuerRoute
-  OfferingsRoute: typeof OfferingsRoute
   OnboardingRoute: typeof OnboardingRoute
+  OfferingsAddressRoute: typeof OfferingsAddressRoute
+  OfferingsIndexRoute: typeof OfferingsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -86,13 +115,6 @@ declare module '@tanstack/react-router' {
       path: '/onboarding'
       fullPath: '/onboarding'
       preLoaderRoute: typeof OnboardingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/offerings': {
-      id: '/offerings'
-      path: '/offerings'
-      fullPath: '/offerings'
-      preLoaderRoute: typeof OfferingsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/issuer': {
@@ -116,6 +138,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/offerings/': {
+      id: '/offerings/'
+      path: '/offerings'
+      fullPath: '/offerings/'
+      preLoaderRoute: typeof OfferingsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/offerings_/$address': {
+      id: '/offerings_/$address'
+      path: '/offerings/$address'
+      fullPath: '/offerings/$address'
+      preLoaderRoute: typeof OfferingsAddressRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -123,8 +159,9 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   InvestorRoute: InvestorRoute,
   IssuerRoute: IssuerRoute,
-  OfferingsRoute: OfferingsRoute,
   OnboardingRoute: OnboardingRoute,
+  OfferingsAddressRoute: OfferingsAddressRoute,
+  OfferingsIndexRoute: OfferingsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

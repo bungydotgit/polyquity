@@ -4,7 +4,7 @@ import { ShieldCheck, ArrowLeft, Search } from 'lucide-react'
 import { getIPOs } from 'server/functions/ipos'
 import { formatUnits } from 'viem'
 
-export const Route = createFileRoute('/offerings')({
+export const Route = createFileRoute('/offerings/')({
   loader: async () => {
     // Fetch all IPOs (You can add pagination params here later)
     const result = await getIPOs({ data: {} })
@@ -46,7 +46,7 @@ function calculateDaysLeft(endTime: string | Date) {
 
 // --- MAIN UI ---
 function OfferingsCatalog() {
-  const { iposData } = useLoaderData({ from: '/offerings' })
+  const { iposData } = Route.useLoaderData()
   const ipos = iposData.ipos
 
   return (
@@ -152,9 +152,13 @@ function OfferingsCatalog() {
                 </div>
 
                 <div className="pt-6 mt-auto">
-                  <button className="w-full bg-[#f2f3ff] hover:bg-[#004ac6] hover:text-white text-[#004ac6] rounded-xl py-2.5 px-4 text-sm font-semibold transition-all">
+                  <Link
+                    to="/offerings/$address"
+                    params={{ address: ipo.contractAddress }}
+                    className="block w-full bg-[#f2f3ff] hover:bg-[#004ac6] hover:text-white text-[#004ac6] rounded-xl py-2.5 px-4 text-sm font-semibold transition-all text-center"
+                  >
                     View Details
-                  </button>
+                  </Link>
                 </div>
               </div>
             )

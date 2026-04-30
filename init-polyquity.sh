@@ -46,10 +46,13 @@ cd ../polyquity || { echo "❌ Could not find polyquity directory"; exit 1; }
 
 CONSTANTS_FILE="src/lib/constants.ts"
 
-sed -i.bak -E "s/export const IDENTITY_REGISTRY_ADDRESS = '.*'/export const IDENTITY_REGISTRY_ADDRESS = '$IDENTITY_REGISTRY_ADDRESS'/" "$CONSTANTS_FILE"
-sed -i.bak -E "s/export const POLY_FACTORY_ADDRESS = '.*'/export const POLY_FACTORY_ADDRESS = '$POLY_FACTORY_ADDRESS'/" "$CONSTANTS_FILE"
-
-rm -f "${CONSTANTS_FILE}.bak"
+node -e "
+const fs = require('fs');
+let code = fs.readFileSync('$CONSTANTS_FILE', 'utf8');
+code = code.replace(/export const IDENTITY_REGISTRY_ADDRESS =\\s*'0x[a-fA-F0-9]*'/s, \"export const IDENTITY_REGISTRY_ADDRESS = '$IDENTITY_REGISTRY_ADDRESS'\");
+code = code.replace(/export const POLY_FACTORY_ADDRESS =\\s*'0x[a-fA-F0-9]*'/s, \"export const POLY_FACTORY_ADDRESS = '$POLY_FACTORY_ADDRESS'\");
+fs.writeFileSync('$CONSTANTS_FILE', code);
+"
 
 # 6. Start Indexer and Drizzle Kit Studio
 echo "📡 Starting Viem Indexer..."

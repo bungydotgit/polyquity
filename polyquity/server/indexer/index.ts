@@ -4,15 +4,10 @@ import { anvil } from 'viem/chains'
 import { db } from '../db/index'
 import { ipos, investments } from '../db/schema'
 import { eq, and } from 'drizzle-orm'
-import { POLY_IPO_ABI } from '../../src/lib/constants'
+import { POLY_IPO_ABI, POLY_FACTORY_ADDRESS } from '../../src/lib/constants'
 
-// Pull the factory address from your environment variables
-const POLYFACTORY_ADDRESS = process.env.POLYFACTORY_ADDRESS as `0x${string}`
-
-if (!POLYFACTORY_ADDRESS) {
-  console.error(
-    '❌ POLYFACTORY_ADDRESS environment variable is required in .env',
-  )
+if (!POLY_FACTORY_ADDRESS) {
+  console.error('❌ POLY_FACTORY_ADDRESS is missing from constants.ts')
   process.exit(1)
 }
 
@@ -87,11 +82,11 @@ async function handleIPOCreated(args: any) {
 async function main() {
   console.log(`🎧 [indexer] Starting PolyFactory event indexer...`)
   console.log(`[indexer] Chain: ${anvil.name} (http://127.0.0.1:8545)`)
-  console.log(`[indexer] PolyFactory address: ${POLYFACTORY_ADDRESS}`)
+  console.log(`[indexer] PolyFactory address: ${POLY_FACTORY_ADDRESS}`)
 
   // 1. WATCH FOR NEW IPOS
   client.watchContractEvent({
-    address: POLYFACTORY_ADDRESS,
+    address: POLY_FACTORY_ADDRESS as `0x${string}`,
     abi: [IPOCreatedEvent],
     eventName: 'IPOCreated',
     onLogs: (logs) => {
