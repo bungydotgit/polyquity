@@ -15,7 +15,7 @@ import {
 // import { getAccount } from '@wagmi/core'
 // import { config } from '@/lib/wagmi'
 import { getInvestorStats } from 'server/functions/stats'
-import { POLY_IPO_ABI, MINIMAL_ERC20_ABI } from '../lib/constants'
+import { MINIMAL_ERC20_ABI, POLY_IPO_ABI } from '../lib/constants'
 import { Web3Guard } from '@/Auth/components/web3-guard'
 // import { getUser } from 'server/functions/users'
 
@@ -92,7 +92,7 @@ function LiveIPOCard({ ipo }: { ipo: any }) {
     functionName: 'getEffectiveState',
     query: { refetchInterval: 3000 },
   })
-  const stateVal = effectiveState !== undefined ? (effectiveState as number) : 0
+  const stateVal = effectiveState !== undefined ? effectiveState : 0
 
   const { data: contributionStr, refetch: refetchContrib } = useReadContract({
     address: ipo.contractAddress as `0x${string}`,
@@ -101,8 +101,7 @@ function LiveIPOCard({ ipo }: { ipo: any }) {
     args: address ? [address] : undefined,
     query: { enabled: !!address, refetchInterval: 3000 },
   })
-  const contribution =
-    contributionStr !== undefined ? (contributionStr as bigint) : 0n
+  const contribution = contributionStr !== undefined ? contributionStr : 0n
 
   const { data: claimableTokensStr, refetch: refetchClaimable } =
     useReadContract({
