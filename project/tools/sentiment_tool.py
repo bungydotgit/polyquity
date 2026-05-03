@@ -76,7 +76,8 @@ def sentiment_tool(candidates_output: str) -> str:
     try:
         logger.info("Starting sentiment_tool")
         data = json.loads(candidates_output)
-        candidates = data["candidates"]
+        '''candidates = data["candidates"]'''
+        candidates = data.get("candidates")
         logger.debug("Received %d candidates for sentiment scoring", len(candidates))
 
         scored_candidates = []
