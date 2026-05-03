@@ -6,14 +6,7 @@ import time
 from pypdf import PdfReader
 from astrapy import DataAPIClient
 from dotenv import load_dotenv
-import os
-import requests
-import io
-import uuid
-import time
-from pypdf import PdfReader
-from astrapy import DataAPIClient
-from dotenv import load_dotenv
+
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 load_dotenv()
@@ -38,9 +31,19 @@ def upload_pdf_to_astra(pinata_url: str):
     
     # 2. DOWNLOAD & EXTRACT TEXT
     print(f"🚀 Downloading PDF...")
-    res = requests.get(pinata_url, stream=True)
+    '''res = requests.get(pinata_url, stream=True)
     res.raise_for_status()
-    pdf_buffer = io.BytesIO(res.content)
+    pdf_buffer = io.BytesIO(res.content)'''
+
+    res = requests.get(pinata_url, stream=True, timeout=120)
+    res.raise_for_status()
+
+    pdf_buffer = io.BytesIO()
+    for chunk in res.iter_content(chunk_size=1024 * 1024):
+        if chunk:
+            pdf_buffer.write(chunk)
+    pdf_buffer.seek(0)
+
     
     reader = PdfReader(pdf_buffer)
     full_text = ""
@@ -88,7 +91,14 @@ def upload_pdf_to_astra(pinata_url: str):
             print(future.result())
 
     total_time = time.perf_counter() - start_time
-    print(f"\n✨ FINISHED in {total_time:.2f} seconds.")
+    print(f"\n FINISHED in {total_time:.2f} seconds.")
+    return {
+        "chunks_processed": len(chunks),
+        "batches": len(batches),
+        "source": pinata_url,
+        "seconds": round(total_time, 2),
+    }
+
 
 '''
 # ── Usage ─────────────────────────────────────────────────────────────────────

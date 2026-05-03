@@ -2,8 +2,11 @@
 
 
 import os
+import re
 from dotenv import load_dotenv
 load_dotenv()
+from typing import Any, Dict, Tuple
+
 
 
 
@@ -167,6 +170,32 @@ eg-Asians Paints
 
 
 )
+
+_WALLET_RE = re.compile(r"0x[a-fA-F0-9]{40}")
+
+def run_turn(state: Dict[str, Any], user_message: str) -> Tuple[str, Dict[str, Any]]:
+    if state is None:
+        state = {}
+
+    messages = state.get("messages") or []
+    is_new_session = len(messages) == 0
+
+    # If first message is just a wallet address, run the same "main" starter prompt
+    if is_new_session:
+        m = _WALLET_RE.search(user_message.strip())
+        if m and user_message.strip() == m.group(0):
+            user_message = f"Give me IPO recommendations for wallet {m.group(0)}"
+
+    messages.append(("user", user_message))
+    response = advisor_agent.invoke({"messages": messages})
+
+    state["messages"] = response["messages"]
+    last = response["messages"][-1]
+    assistant_text = getattr(last, "content", str(last))
+    return assistant_text, state
+
+
+
 
 if __name__ == "__main__":
     print("RUNNING ..........")

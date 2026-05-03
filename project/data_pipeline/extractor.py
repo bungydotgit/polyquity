@@ -1,13 +1,14 @@
 
 import uuid
 import json
-from playwright.sync_api import sync_playwright
-from googlesearch import search
+'''from playwright.sync_api import sync_playwright
+from googlesearch import search'''
 import psycopg2
 import os
 from dotenv import load_dotenv
-from extractor_utils import get_ipo_url_professional,scrape_ipo,get_data,get_pinata_url
-from sample_upload import upload_pdf_to_astra
+from data_pipeline.extractor_utils import get_ipo_url_professional, get_data, get_pinata_url
+from data_pipeline.sample_upload import upload_pdf_to_astra
+from typing import Optional, Dict, Any
 
 
 
@@ -67,53 +68,90 @@ def classify_company(revenue):
     return "Unknown"
 
 
-def add_to_table(ipo_id:uuid.UUID,name:str,ipo_cid:str):
-    company=get_ipo_url_professional(name)
-    get_data(company)
-    result=extract_ipo_metrics("ipo_data.json")
-    print(result)
+def onboard_new_ipo(company_name: str, source_url: Optional[str] = None, ipfs_cid: Optional[str] = None) -> str:
+    print("✅ extractor.onboard_new_ipo called", company_name, source_url, ipfs_cid)
 
-    rev_val = clean(result.get('Revenue'))
-    pe_val  = clean(result.get('PE Ratio'))
-    eps_val = clean(result.get('EPS'))
-    roe_val = clean(result.get('ROE'))
-    roce_val = clean(result.get('ROCE'))
-    pat_val = clean(result.get('PAT'))
-    
-    result["cap_size"] = classify_company(rev_val)
-    
+    """
+    FastAPI: POST /api/v1/ipos
+    - Scrape metrics + insert IPO row into Postgres
+    - Return ipo_id (string)
+    """
+    ipo_id = str(uuid.uuid4())
+
+    # Your current flow uses get_ipo_url_professional(name) and get_data(company)
+    company_url = get_ipo_url_professional(company_name)
+    get_data(company_url)
+
+    metrics = extract_ipo_metrics("ipo_data.json")
+
+    rev_val = clean(metrics.get("Revenue"))
+    pe_val = clean(metrics.get("PE Ratio"))
+    eps_val = clean(metrics.get("EPS"))
+    roe_val = clean(metrics.get("ROE"))
+    roce_val = clean(metrics.get("ROCE"))
+    pat_val = clean(metrics.get("PAT"))
+
+    cap_size = classify_company(rev_val)
+
+    connection = None
+    cursor = None
     try:
-            # Connect to the database
-            connection = psycopg2.connect(
-                dbname=os.environ["POSTGRES_DB"], 
-                user=os.environ["POSTGRES_USER"], 
-                password=os.environ["POSTGRES_PASSWORD"], 
-                host=os.environ["POSTGRES_HOST"], 
-                port=os.environ["POSTGRES_PORT"]
-            )
-            cursor = connection.cursor()
+        connection = psycopg2.connect(
+            dbname=os.environ["POSTGRES_DB"],
+            user=os.environ["POSTGRES_USER"],
+            password=os.environ["POSTGRES_PASSWORD"],
+            host=os.environ["POSTGRES_HOST"],
+            port=os.environ["POSTGRES_PORT"],
+        )
+        cursor = connection.cursor()
 
-            # Add an entry (Insert)
-            insert_query = "INSERT INTO ipo (ipo_id,name,revenue,pe_ratio,eps,roce,roe,pat,cap_size,ipfs_doc_cid) VALUES (%s, %s, %s, %s,%s,%s,%s,%s,%s,%s)"
-            print("the error is occuring here")
-            record_to_insert = (ipo_id, name, rev_val, pe_val, eps_val, roce_val, roe_val, pat_val, result['cap_size'], ipo_cid)
-        
-            cursor.execute(insert_query, record_to_insert)
-            # Commit changes to save to the database
-            connection.commit()
-            print("Record inserted successfully")
-            url_astra=get_pinata_url(ipo_cid)
-            print(url_astra)
-            upload_pdf_to_astra(url_astra)
+        insert_query = """
+            INSERT INTO ipo (ipo_id, name, revenue, pe_ratio, eps, roce, roe, pat, cap_size, ipfs_doc_cid)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """
+        record_to_insert = (ipo_id, company_name, rev_val, pe_val, eps_val, roce_val, roe_val, pat_val, cap_size, ipfs_cid)
+        cursor.execute(insert_query, record_to_insert)
+        connection.commit()
 
+        return ipo_id
 
-    except Exception as error:
-            print(f"Error: {error}")
     finally:
-            if connection:
-                cursor.close()
-                connection.close()
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+
+def process_and_embed_prospectus(ipfs_cid: str, ipo_id: str) -> Dict[str, Any]:
+    """
+    FastAPI background job: POST /api/v1/ipos/{ipo_id}/embeddings
+    - Convert CID -> gateway URL
+    - Upload/chunk/embed into Astra via sample_upload.upload_pdf_to_astra
+    """
+    url_astra = get_pinata_url(ipfs_cid)
+
+    # IMPORTANT: adjust this based on what upload_pdf_to_astra returns (Step 4)
+    result = upload_pdf_to_astra(url_astra)
+
+    # Normalize return for jobs endpoint
+    if isinstance(result, dict) and "chunks_processed" in result:
+        return {"ipo_id": ipo_id, "chunks_processed": result["chunks_processed"]}
+
+    # fallback if upload_pdf_to_astra returns None/str
+    return {"ipo_id": ipo_id, "chunks_processed": 0}
     
+def run_ipo_pipeline(company_name: str, source_url: Optional[str] = None, ipfs_cid: Optional[str] = None) -> Dict[str, Any]:
+    ipo_id = onboard_new_ipo(company_name=company_name, source_url=source_url, ipfs_cid=ipfs_cid)
+
+    if not ipfs_cid:
+        return {"ipo_id": ipo_id, "chunks_processed": 0}
+
+    embed_result = process_and_embed_prospectus(ipfs_cid=ipfs_cid, ipo_id=ipo_id)
+    if isinstance(embed_result, dict):
+        return {"ipo_id": ipo_id, **embed_result}
+
+    return {"ipo_id": ipo_id, "chunks_processed": 0}
+
 
 
 
